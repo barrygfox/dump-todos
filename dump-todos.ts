@@ -7,7 +7,9 @@ import { spawn } from "child_process";
 const CLIENT_ID = "3187224c-ea09-4c7f-94bc-b1ba83001a4e";
 const TENANT_ID = "518a43e5-ff84-49ea-9a28-73053588b03d";
 const SCOPE = "Tasks.Read offline_access";
-const REDIRECT_URI = "http://localhost:3000";
+const REDIRECT_HOST = "127.0.0.1";
+const REDIRECT_PORT = 3000;
+const REDIRECT_URI = `http://${REDIRECT_HOST}:${REDIRECT_PORT}`;
 
 // --- Auth ---
 
@@ -20,14 +22,25 @@ function generatePKCE(): { code_verifier: string; code_challenge: string } {
   return { code_verifier, code_challenge };
 }
 
-async function getAuthorizationCode(code_challenge: string): Promise<string> {
+function generateState(): string {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
+async function getAuthorizationCode(code_challenge: string, expectedState: string): Promise<string> {
   return new Promise((resolve, reject) => {
     let timeoutId: NodeJS.Timeout;
     
     const server = http.createServer((req, res) => {
-      const url = new URL(`http://localhost${req.url}`);
+      const url = new URL(req.url ?? "/", REDIRECT_URI);
       const code = url.searchParams.get("code");
       const error = url.searchParams.get("error");
+      const state = url.searchParams.get("state");
+
+      if (url.pathname !== "/") {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
 
       if (error) {
         res.writeHead(400, { "Content-Type": "text/plain" });
@@ -35,6 +48,12 @@ async function getAuthorizationCode(code_challenge: string): Promise<string> {
         clearTimeout(timeoutId);
         server.close();
         reject(new Error(`Auth error: ${error}`));
+      } else if (!state || state !== expectedState) {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Invalid OAuth state");
+        clearTimeout(timeoutId);
+        server.close();
+        reject(new Error("Invalid OAuth state"));
       } else if (code) {
         res.writeHead(200, { "Content-Type": "text/plain" });
         res.end("Authentication successful! You can close this window.");
@@ -47,7 +66,7 @@ async function getAuthorizationCode(code_challenge: string): Promise<string> {
       }
     });
 
-    server.listen(3000, () => {
+    server.listen(REDIRECT_PORT, REDIRECT_HOST, () => {
       const authUrl = new URL(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize`);
       authUrl.searchParams.set("client_id", CLIENT_ID);
       authUrl.searchParams.set("response_type", "code");
@@ -55,6 +74,7 @@ async function getAuthorizationCode(code_challenge: string): Promise<string> {
       authUrl.searchParams.set("scope", SCOPE);
       authUrl.searchParams.set("code_challenge", code_challenge);
       authUrl.searchParams.set("code_challenge_method", "S256");
+      authUrl.searchParams.set("state", expectedState);
       authUrl.searchParams.set("prompt", "select_account");
 
       console.log(`\nOpening browser for authentication...\n`);
@@ -196,13 +216,14 @@ function jsonPost(url: string, body: string): Promise<any> {
   const incompleteOnly = process.argv.includes("--incomplete");
   
   const { code_verifier, code_challenge } = generatePKCE();
-  const code = await getAuthorizationCode(code_challenge);
+  const state = generateState();
+  const code = await getAuthorizationCode(code_challenge, state);
   const token = await exchangeCodeForToken(code, code_verifier);
   console.log(`Authenticated. Fetching tasks${incompleteOnly ? " (incomplete only)" : ""}...`);
 
   const output = await dump(token, incompleteOnly);
   const outFile = "todo-export.md";
-  fs.writeFileSync(outFile, output, "utf8");
+  fs.writeFileSync(outFile, output, { encoding: "utf8", mode: 0o600, flag: "w" });
   console.log(`Done. Written to ${outFile}`);
   process.exit(0);
 })().catch((err) => {
