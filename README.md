@@ -31,25 +31,39 @@ The script uses the Entra application values defined in [dump-todos.ts](dump-tod
 
 ## Usage
 
-Export all tasks:
+Write all tasks to stdout:
 
 ```bash
 npx tsx dump-todos.ts
 ```
 
-Export only incomplete tasks:
+Write only incomplete tasks to stdout:
 
 ```bash
 npx tsx dump-todos.ts --incomplete
 ```
 
+Write to a file explicitly:
+
+```bash
+npx tsx dump-todos.ts --output todo-export.md
+```
+
 During authentication, the script opens your browser and waits for the redirect on `127.0.0.1:3000`.
+
+## Go rewrite
+
+A separate Go rewrite lives under `go/`.
+
+It is intentionally isolated from the TypeScript implementation so both versions can be run side by side while the Go version reaches feature parity.
+
+See `go/README.md` for the Go-specific build and run instructions.
 
 ## Output
 
-The export is written to `todo-export.md` in the project directory.
+By default the export is written to stdout.
 
-The file is created with owner-only permissions on Unix-like systems.
+If `--output` is provided, the file is created with owner-only permissions on Unix-like systems.
 
 ## Notes
 

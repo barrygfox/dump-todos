@@ -1,0 +1,72 @@
+{
+  "lists": [
+    {
+      "displayName": "Work",
+      "tasks": [
+        {
+          "title": "Ship CLI parity",
+          "status": "notStarted",
+          "body": {
+            "contentType": "html",
+            "content": "Review&nbsp;<b>export</b> formatting"
+          },
+          "dueDateTime": {
+            "dateTime": "2026-03-10T09:00:00Z"
+          },
+          "checklistItems": [
+            {
+              "displayName": "Compare Go output",
+              "isChecked": true
+            },
+            {
+              "displayName": "Compare TS output",
+              "isChecked": false
+            }
+          ]
+        },
+        {
+          "title": "Completed item",
+          "status": "completed",
+          "body": {
+            "contentType": "text",
+            "content": "Already done"
+          },
+          "checklistItems": []
+        }
+      ]
+    },
+    {
+      "displayName": "Personal",
+      "tasks": [
+        {
+          "title": "Buy coffee",
+          "status": "notStarted",
+          "body": {
+            "contentType": "text",
+            "content": "  ground beans only  "
+          },
+          "checklistItems": [
+            {
+              "displayName": "Check cupboard",
+              "isChecked": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "displayName": "Completed Only",
+      "tasks": [
+        {
+          "title": "Archive old export",
+          "status": "completed",
+          "body": {
+            "contentType": "text",
+            "content": "done"
+          },
+          "checklistItems": []
+        }
+      ]
+    }
+  ]
+}

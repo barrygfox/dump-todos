@@ -3,6 +3,7 @@ import * as https from "https";
 import * as fs from "fs";
 import * as crypto from "crypto";
 import { spawn } from "child_process";
+import { pathToFileURL } from "url";
 
 const CLIENT_ID = "3187224c-ea09-4c7f-94bc-b1ba83001a4e";
 const TENANT_ID = "518a43e5-ff84-49ea-9a28-73053588b03d";
@@ -10,6 +11,29 @@ const SCOPE = "Tasks.Read offline_access";
 const REDIRECT_HOST = "127.0.0.1";
 const REDIRECT_PORT = 3000;
 const REDIRECT_URI = `http://${REDIRECT_HOST}:${REDIRECT_PORT}`;
+
+export type ExportChecklistItem = {
+  displayName: string;
+  isChecked: boolean;
+};
+
+export type ExportTaskBody = {
+  contentType?: string;
+  content?: string;
+};
+
+export type ExportTask = {
+  title: string;
+  status: string;
+  body?: ExportTaskBody;
+  dueDateTime?: { dateTime: string };
+  checklistItems?: ExportChecklistItem[];
+};
+
+export type ExportList = {
+  displayName: string;
+  tasks: ExportTask[];
+};
 
 // --- Auth ---
 
@@ -77,7 +101,7 @@ async function getAuthorizationCode(code_challenge: string, expectedState: strin
       authUrl.searchParams.set("state", expectedState);
       authUrl.searchParams.set("prompt", "select_account");
 
-      console.log(`\nOpening browser for authentication...\n`);
+      console.error(`\nOpening browser for authentication...\n`);
       spawn("open", [authUrl.toString()]);
     });
 
@@ -138,19 +162,29 @@ async function getAllPages(token: string, url: string): Promise<any[]> {
 
 // --- Dump ---
 
-async function dump(token: string, incompleteOnly: boolean = false): Promise<string> {
+async function fetchLists(token: string): Promise<ExportList[]> {
   const lists = await getAllPages(token, "/v1.0/me/todo/lists");
-  const lines: string[] = [];
+  const exportLists: ExportList[] = [];
 
   for (const list of lists) {
     const tasks = await getAllPages(token, `/v1.0/me/todo/lists/${list.id}/tasks?$expand=checklistItems`);
-    
-    // Filter tasks if incompleteOnly is true
-    const filteredTasks = incompleteOnly ? tasks.filter(t => t.status !== "completed") : tasks;
-    
-    // Skip empty lists when filtering
+
+    exportLists.push({
+      displayName: list.displayName,
+      tasks,
+    });
+  }
+
+  return exportLists;
+}
+
+export function renderLists(lists: ExportList[], incompleteOnly: boolean = false): string {
+  const lines: string[] = [];
+
+  for (const list of lists) {
+    const filteredTasks = incompleteOnly ? list.tasks.filter((task) => task.status !== "completed") : list.tasks;
     if (filteredTasks.length === 0) continue;
-    
+
     lines.push(`# ${list.displayName}`);
 
     for (const task of filteredTasks) {
@@ -176,9 +210,12 @@ async function dump(token: string, incompleteOnly: boolean = false): Promise<str
   return lines.join("\n");
 }
 
-// --- Helpers ---
+async function dump(token: string, incompleteOnly: boolean = false): Promise<string> {
+  const lists = await fetchLists(token);
+  return renderLists(lists, incompleteOnly);
+}
 
-function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+// --- Helpers ---
 
 function jsonPost(url: string, body: string): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -212,21 +249,44 @@ function jsonPost(url: string, body: string): Promise<any> {
 
 // --- Main ---
 
-(async () => {
+function getFlagValue(flagName: string): string | undefined {
+  const flagIndex = process.argv.indexOf(flagName);
+  if (flagIndex === -1) return undefined;
+
+  const flagValue = process.argv[flagIndex + 1];
+  if (!flagValue || flagValue.startsWith("--")) {
+    throw new Error(`${flagName} requires a value`);
+  }
+
+  return flagValue;
+}
+
+async function main(): Promise<void> {
   const incompleteOnly = process.argv.includes("--incomplete");
+  const outputPath = getFlagValue("--output");
   
   const { code_verifier, code_challenge } = generatePKCE();
   const state = generateState();
   const code = await getAuthorizationCode(code_challenge, state);
   const token = await exchangeCodeForToken(code, code_verifier);
-  console.log(`Authenticated. Fetching tasks${incompleteOnly ? " (incomplete only)" : ""}...`);
+  console.error(`Authenticated. Fetching tasks${incompleteOnly ? " (incomplete only)" : ""}...`);
 
   const output = await dump(token, incompleteOnly);
-  const outFile = "todo-export.md";
-  fs.writeFileSync(outFile, output, { encoding: "utf8", mode: 0o600, flag: "w" });
-  console.log(`Done. Written to ${outFile}`);
-  process.exit(0);
-})().catch((err) => {
-  console.error("Error:", err instanceof Error ? err.message : JSON.stringify(err, null, 2));
-  process.exit(1);
-});
+  if (outputPath) {
+    fs.writeFileSync(outputPath, output, { encoding: "utf8", mode: 0o600, flag: "w" });
+    console.error(`Done. Written to ${outputPath}`);
+    return;
+  }
+
+  process.stdout.write(output);
+  if (output.length > 0 && !output.endsWith("\n")) {
+    process.stdout.write("\n");
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void main().catch((err) => {
+    console.error("Error:", err instanceof Error ? err.message : JSON.stringify(err, null, 2));
+    process.exit(1);
+  });
+}
