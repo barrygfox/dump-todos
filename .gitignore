@@ -1,3 +1,8 @@
 node_modules/*
+dist-ts/
 todo-export.md
 package-lock.json
+go/bin/
+go/dist/
+go/todo-export-go.md
+.DS_Store
