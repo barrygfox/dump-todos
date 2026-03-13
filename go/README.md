@@ -1,12 +1,12 @@
-# Go Rewrite
+# Go CLI
 
-This directory contains a parallel Go implementation of the Microsoft To Do exporter.
+This directory contains the canonical Microsoft To Do exporter for this project.
 
-The existing TypeScript implementation at the repository root remains the reference implementation.
+The TypeScript implementation at the repository root is retained as an earlier prototype.
 
 ## Goals
 
-- Keep the Go rewrite isolated from the working TypeScript CLI
+- Provide the primary maintained CLI for exporting Microsoft To Do tasks
 - Preserve the core export behavior, including `--incomplete`
 - Make configuration packaging-friendly by moving it to flags and environment variables
 
@@ -67,9 +67,9 @@ make build-macos
 
 That script writes separate `arm64` and `amd64` binaries to `dist/`.
 
-## Comparison Workflow
+## TypeScript Prototype
 
-Run the TypeScript exporter from the repository root:
+If you need to compare behavior against the original prototype, run the TypeScript exporter from the repository root:
 
 ```bash
 npx tsx dump-todos.ts --incomplete --output todo-export.md
@@ -81,4 +81,4 @@ Run the Go exporter from this directory:
 go run ./cmd/dump-todos --incomplete --output ../todo-export-go.md
 ```
 
-That keeps both outputs side by side for diffing without changing the TypeScript flow.
+That keeps both outputs side by side for diffing without affecting the Go CLI workflow.
